@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMM Command | Secure Authorization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #00ff95; --dark: #05080a; --accent: #1e293b; --text: #ffffff;
+            --danger: #ff4757; --warning: #ffa502; --glass: rgba(255, 255, 255, 0.05);
+            --gold: #ffd700;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; }
+        body { 
+            background: var(--dark); color: var(--text); 
+            background-image: linear-gradient(rgba(0, 255, 149, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 149, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px; min-height: 100vh; overflow-x: hidden;
+        }
+
+        /* Authorization Overlay */
+        #auth-gate {
+            position: fixed; inset: 0; background: var(--dark); z-index: 9999;
+            display: flex; align-items: center; justify-content: center; backdrop-filter: blur(20px);
+        }
+        .auth-card {
+            background: var(--glass); padding: 40px; border-radius: 20px; border: 1px solid var(--primary);
+            text-align: center; max-width: 400px; width: 90%;
+        }
+        .auth-card input {
+            width: 100%; padding: 15px; margin: 20px 0; background: rgba(255,255,255,0.1);
+            border: 1px solid var(--primary); color: white; text-align: center; font-size: 1.2rem; border-radius: 5px;
+        }
+        .auth-btn { background: var(--primary); color: var(--dark); padding: 15px 30px; border: none; font-weight: 900; cursor: pointer; border-radius: 5px; width: 100%; text-transform: uppercase; }
+
+        /* Main UI (Hidden until auth) */
+        #main-ui { display: none; }
+
+        nav { display: flex; align-items: center; justify-content: space-between; padding: 1.5rem 5%; background: rgba(5, 8, 10, 0.9); border-bottom: 2px solid var(--primary); position: sticky; top:0; z-index: 1000; }
+        .nav-logo { display: flex; align-items: center; gap: 15px; }
+        .nav-logo img { height: 50px; border-radius: 4px; }
+        
+        .revenue-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; padding: 20px 5%; background: rgba(0, 255, 149, 0.05); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .rev-card { background: var(--glass); padding: 15px; border-radius: 8px; border-top: 2px solid var(--primary); }
+        .rev-card.total { border-top: 2px solid var(--gold); }
+        .rev-card h3 { font-size: 1.1rem; color: #fff; margin-top: 5px; }
+
+        .map-container { height: 250px; margin: 20px 5%; border-radius: 15px; border: 1px solid var(--primary); overflow: hidden; position: relative; background: #1a1a1a; }
+        iframe { width: 100%; height: 100%; border: none; filter: grayscale(1) invert(1); }
+        .drone-marker { position: absolute; width: 12px; height: 12px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 15px var(--primary); transition: 1s linear; }
+
+        .mission-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; padding: 0 5%; margin-bottom: 40px; }
+        .sector-box { background: var(--glass); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; }
+        .sector-header { padding: 12px 15px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--primary); font-size: 0.75rem; font-weight: 900; display: flex; justify-content: space-between; align-items: center; }
+        .count-tag { background: var(--primary); color: var(--dark); padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        td, th { padding: 10px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .eta-text { color: var(--warning); font-weight: 700; font-family: monospace; }
+        
+        .btn-sm { padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.65rem; font-weight: 700; }
+        .btn-fly { background: var(--primary); color: var(--dark); }
+        .btn-del { background: var(--danger); color: #fff; margin-left: 5px; }
+
+        #alert-banner { background: var(--danger); color: white; padding: 10px; display: none; text-align: center; font-weight: 900; position: fixed; width: 100%; top: 0; z-index: 2000; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-gate">
+        <div class="auth-card">
+            <img src="https://i.postimg.cc/c4r1C82M/MMM-Platforms-logo.jpg" style="height: 60px; border-radius: 5px; margin-bottom: 20px;">
+            <h2>STAFF ACCESS</h2>
+            <p style="font-size: 0.7rem; opacity: 0.6;">ENTER ENCRYPTION KEY TO DEPLOY SENSORS</p>
+            <input type="password" id="security-key" placeholder="••••••••">
+            <button class="auth-btn" onclick="validateAccess()">Initialize Command</button>
+        </div>
+    </div>
+
+    <div id="main-ui">
+        <div id="alert-banner">⚠️ CRITICAL: TELEMETRY ERROR IN SECTOR ALPHA</div>
+
+        <nav>
+            <div class="nav-logo">
+                <img src="https://i.postimg.cc/c4r1C82M/MMM-Platforms-logo.jpg" alt="MMM Logo">
+                <div>
+                    <h1 style="margin:0; font-size: 1.2rem; font-weight: 900;">MMM MISSION CONTROL</h1>
+                    <p style="font-size: 0.6rem; color: var(--primary);">AUTHORIZATION: LEVEL 1 (M. HLOPHE)</p>
+                </div>
+            </div>
+            <button onclick="triggerAlarm()" style="background:var(--danger); color:white; border:none; padding:8px 15px; font-weight:900; border-radius:5px; cursor:pointer;">EMERGENCY ALARM</button>
+        </nav>
+
+        <div class="revenue-dashboard">
+            <div class="rev-card"><small>Agri Mapping</small><h3 id="rev-agri">€0</h3></div>
+            <div class="rev-card"><small>Courier Services</small><h3 id="rev-courier">€0</h3></div>
+            <div class="rev-card"><small>Infrastructure</small><h3 id="rev-inspection">€0</h3></div>
+            <div class="rev-card"><small>Creative/Security</small><h3 id="rev-others">€0</h3></div>
+            <div class="rev-card total"><small>Global Portfolio Value</small><h3 id="rev-total" style="color:var(--gold)">€0</h3></div>
+        </div>
+
+        <div class="map-container">
+            <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d19050.8117497262!2d-6.2603!3d53.3498!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1sen!2sie!4v1700000000000!5m2!1sen!2sie"></iframe>
+            <div class="drone-marker" id="drone"></div>
+        </div>
+
+        <div class="mission-grid">
+            <div class="sector-box"><div class="sector-header"><span>AGRI MAPPING</span><span class="count-tag" id="count-agri">0</span></div><table id="table-agri"><thead><tr><th>ID</th><th>Client</th><th>Est. Completion</th><th>Control</th></tr></thead><tbody></tbody></table></div>
+            <div class="sector-box"><div class="sector-header"><span>COURIER DELIVERY</span><span class="count-tag" id="count-courier">0</span></div><table id="table-courier"><thead><tr><th>ID</th><th>Client</th><th>ETA Arrival</th><th>Control</th></tr></thead><tbody></tbody></table></div>
+            <div class="sector-box"><div class="sector-header"><span>INFRASTRUCTURE</span><span class="count-tag" id="count-inspection">0</span></div><table id="table-inspection"><thead><tr><th>ID</th><th>Client</th><th>Control</th></tr></thead><tbody></tbody></table></div>
+            <div class="sector-box"><div class="sector-header"><span>CREATIVE PRODUCTION</span><span class="count-tag" id="count-creative">0</span></div><table id="table-creative"><thead><tr><th>ID</th><th>Client</th><th>Control</th></tr></thead><tbody></tbody></table></div>
+            <div class="sector-box"><div class="sector-header"><span>SECURITY PATROL</span><span class="count-tag" id="count-security">0</span></div><table id="table-security"><thead><tr><th>ID</th><th>Client</th><th>Control</th></tr></thead><tbody></tbody></table></div>
+            <div class="sector-box"><div class="sector-header"><span>SEARCH & RESCUE</span><span class="count-tag" id="count-search">0</span></div><table id="table-search"><thead><tr><th>ID</th><th>Client</th><th>Control</th></tr></thead><tbody></tbody></table></div>
+        </div>
+
+        <div style="padding: 0 5%;">
+            <div class="sector-box" style="width: 100%;">
+                <div class="sector-header"><span>CORPORATE LEADS & COMPANY PROFILES</span></div>
+                <table id="table-leads"><thead><tr><th>Org Name</th><th>Contact</th><th>Email</th><th>Details</th><th>Action</th></tr></thead><tbody></tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA42AEfO6mGGSTKa-2QcR9hFEj3xBhRuoc",
+            authDomain: "live-order-board-ab721.firebaseapp.com",
+            projectId: "live-order-board-ab721",
+            storageBucket: "live-order-board-ab721.firebasestorage.app",
+            messagingSenderId: "157405136208",
+            appId: "1:157405136208:web:074c852dbae6a46a305855"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Security Logic
+        window.validateAccess = () => {
+            const key = document.getElementById('security-key').value;
+            if(key === "MMM2025") { // Your secure password
+                document.getElementById('auth-gate').style.display = 'none';
+                document.getElementById('main-ui').style.display = 'block';
+                // Initialize audio on first click (browser requirement)
+                audioCtx.resume();
+            } else {
+                alert("ACCESS DENIED: INVALID SECURITY KEY");
+            }
+        };
+
+        // Beep Signal / Alarm Logic
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        window.triggerAlarm = () => {
+            document.getElementById('alert-banner').style.display = 'block';
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.frequency.value = 900;
+            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.8);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.8);
+            setTimeout(() => document.getElementById('alert-banner').style.display = 'none', 3000);
+        };
+
+        // Sync & Revenue Logic
+        onSnapshot(collection(db, "orders"), (snapshot) => {
+            const sectors = { agri: '', courier: '', inspection: '', creative: '', security: '', search: '' };
+            const counts = { agri: 0, courier: 0, inspection: 0, creative: 0, security: 0, search: 0 };
+            const revenue = { agri: 0, courier: 0, inspection: 0, others: 0, total: 0 };
+
+            snapshot.forEach(d => {
+                const data = d.data();
+                const sType = data.service.toLowerCase();
+                const val = data.revenue || 0;
+                revenue.total += val;
+                
+                let key = ''; let time = 'ACTIVE';
+                if(sType.includes('agri')) { key = 'agri'; revenue.agri += val; time = '2.5 hrs'; }
+                else if(sType.includes('courier')) { key = 'courier'; revenue.courier += val; time = '14:30 GMT'; }
+                else if(sType.includes('inspection')) { key = 'inspection'; revenue.inspection += val; }
+                else { key = sType.split(' ')[0]; revenue.others += val; }
+
+                if(sectors[key] !== undefined) {
+                    counts[key]++;
+                    sectors[key] += `<tr>
+                        <td style="color:var(--primary); font-weight:700;">${data.orderNumber}</td>
+                        <td>${data.client}</td>
+                        ${key === 'agri' || key === 'courier' ? `<td class="eta-text">${time}</td>` : ''}
+                        <td>
+                            <button class="btn-sm btn-fly" onclick="window.updateStatus('${d.id}', 'FLIGHT')">FLY</button>
+                            <button class="btn-sm btn-del" onclick="window.deleteEntry('orders', '${d.id}')">✕</button>
+                        </td>
+                    </tr>`;
+                }
+            });
+
+            for(let k in sectors) {
+                const el = document.getElementById(`table-${k}`);
+                if(el) el.querySelector('tbody').innerHTML = sectors[k];
+                if(document.getElementById(`count-${k}`)) document.getElementById(`count-${k}`).innerText = counts[k];
+            }
+            document.getElementById('rev-agri').innerText = '€' + revenue.agri.toLocaleString();
+            document.getElementById('rev-courier').innerText = '€' + revenue.courier.toLocaleString();
+            document.getElementById('rev-inspection').innerText = '€' + revenue.inspection.toLocaleString();
+            document.getElementById('rev-others').innerText = '€' + revenue.others.toLocaleString();
+            document.getElementById('rev-total').innerText = '€' + revenue.total.toLocaleString();
+        });
+
+        // Leads Sync
+        onSnapshot(collection(db, "inquiries"), (snapshot) => {
+            const body = document.getElementById('table-leads').querySelector('tbody');
+            body.innerHTML = '';
+            snapshot.forEach(d => {
+                const data = d.data();
+                body.innerHTML += `<tr><td>${data.clientName}</td><td>${data.telephone}</td><td>${data.email}</td><td style="font-size:0.6rem;">${data.companyProfile}</td><td><button class="btn-sm btn-del" onclick="window.deleteEntry('inquiries', '${d.id}')">✕</button></td></tr>`;
+            });
+        });
+
+        window.deleteEntry = async (c, i) => { if(confirm('Erase Record?')) await deleteDoc(doc(db, c, i)); };
+        window.updateStatus = async (i, s) => { await updateDoc(doc(db, 'orders', i), { status: s }); };
+    </script>
+</body>
+</html>
